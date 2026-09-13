@@ -5,23 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#1c211b">
+<meta name="theme-color" content="#131b25">
 <title>Mercadería</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Archivo:wght@400;500;600;700&display=swap');
 
 :root{
-  --paper:#1c211b;
-  --card:#262b22;
-  --ink:#eef1e7;
-  --muted:#9aa68e;
-  --faint:#818e77;
-  --line:#3a4133;
-  --line-soft:#2f352a;
-  --lleno:#6bbf86;
-  --medio:#b7d17a;
-  --poco:#e3a83f;
-  --sin:#e2645a;
+  --paper:#131b25;
+  --card:#1d2733;
+  --ink:#e9eff5;
+  --muted:#93a4b5;
+  --faint:#66798c;
+  --line:#2c3a49;
+  --line-soft:#212d3a;
+  --lleno:#5cc593;
+  --medio:#c3d472;
+  --poco:#eab04a;
+  --sin:#ec6b5e;
   --r:14px;
   --r-sm:10px;
   --safe-b: env(safe-area-inset-bottom, 0px);
@@ -57,7 +57,7 @@ input, select, textarea{font-family:inherit; color:var(--ink); font-size:16px;}
 .topbar .summary b{ color:var(--sin); font-weight:700; }
 
 .sync-warn{
-  margin:0 18px 8px; background:#3a2320; border:1px solid #5a332c; color:var(--sin);
+  margin:0 18px 8px; background:#2c1b1e; border:1px solid #4a2b30; color:var(--sin);
   border-radius:var(--r-sm); padding:9px 12px; font-size:13px; line-height:1.4;
 }
 
@@ -152,7 +152,7 @@ main{ flex:1; padding:0 18px 104px; }
   position:sticky; bottom:calc(70px + var(--safe-b)); margin-top:16px;
   width:100%; border:none; border-radius:13px; background:var(--lleno); color:#fff;
   padding:15px; font-size:15.5px; font-weight:700;
-  box-shadow:0 6px 18px rgba(107,191,134,0.28);
+  box-shadow:0 6px 18px rgba(92,197,147,0.28);
 }
 .save-buy:disabled{ background:var(--line); color:var(--faint); box-shadow:none; }
 
@@ -164,7 +164,7 @@ main{ flex:1; padding:0 18px 104px; }
 /* ---------- Tabbar ---------- */
 .tabbar{
   position:sticky; bottom:0; display:flex;
-  background:rgba(232,235,227,0.94); backdrop-filter:blur(12px);
+  background:rgba(19,27,37,0.92); backdrop-filter:blur(12px);
   border-top:1px solid var(--line); padding-bottom:var(--safe-b);
 }
 .tab{
@@ -186,14 +186,14 @@ main{ flex:1; padding:0 18px 104px; }
   position:fixed; right:calc(50% - 240px + 18px); bottom:calc(72px + var(--safe-b));
   width:52px; height:52px; border-radius:50%; background:var(--ink); color:var(--paper);
   border:none; display:flex; align-items:center; justify-content:center;
-  box-shadow:0 7px 18px rgba(27,36,29,0.32); z-index:20;
+  box-shadow:0 7px 18px rgba(5,8,12,0.4); z-index:20;
 }
 @media (max-width:520px){ .fab{ right:18px; } }
 .fab svg{ width:22px; height:22px; }
 .fab:active{ transform:scale(0.94); }
 
 /* ---------- Sheet ---------- */
-.overlay{ position:fixed; inset:0; background:rgba(27,36,29,0.35); z-index:50; display:flex; align-items:flex-end; justify-content:center; }
+.overlay{ position:fixed; inset:0; background:rgba(6,10,16,0.55); z-index:50; display:flex; align-items:flex-end; justify-content:center; }
 .sheet{
   width:100%; max-width:480px; max-height:90dvh; overflow-y:auto;
   background:var(--paper); border-radius:20px 20px 0 0;
@@ -231,7 +231,7 @@ main{ flex:1; padding:0 18px 104px; }
 .btn{ border:none; border-radius:11px; padding:13px; font-size:14.5px; font-weight:600; }
 .btn-primary{ background:var(--lleno); color:#fff; }
 .btn-ghost{ background:var(--card); border:1px solid var(--line); color:var(--muted); }
-.btn-danger{ background:none; border:1px solid rgba(226,100,90,0.4); color:var(--sin); }
+.btn-danger{ background:none; border:1px solid rgba(236,107,94,0.4); color:var(--sin); }
 
 /* ---------- Toast ---------- */
 .toast{
@@ -476,7 +476,18 @@ function itemHTML(p){
       levels+
     '</div>'+
     control+
+    '<button class="li-del" data-idel="'+p.id+'" aria-label="Eliminar producto">&times;</button>'+
   '</div>';
+}
+
+function eliminarProducto(id, nombre, alConfirmar){
+  if(!confirm('¿Eliminar "'+nombre+'" del stock?')) return;
+  if(alConfirmar) alConfirmar();
+  state.productos = state.productos.filter(function(x){return x.id!==id;});
+  delete state.buyQty[id];
+  render();
+  api('productos?id=eq.'+id, {method:'DELETE', prefer:'return=minimal'})
+    .catch(function(){ toast('No se pudo borrar.'); loadAll(); });
 }
 
 function bindDespensa(root){
@@ -496,6 +507,14 @@ function bindDespensa(root){
     b.addEventListener('click', function(){
       var p = state.productos.find(function(x){return x.id===b.getAttribute('data-minus');});
       patchProducto(p.id, {cantidad: Math.max(0, Number(p.cantidad)-1)});
+    });
+  });
+  root.querySelectorAll('[data-idel]').forEach(function(b){
+    b.addEventListener('click', function(e){
+      e.stopPropagation();
+      var id = b.getAttribute('data-idel');
+      var p = state.productos.find(function(x){return x.id===id;});
+      if(p) eliminarProducto(p.id, p.nombre);
     });
   });
   root.querySelectorAll('[data-edit]').forEach(function(el){
@@ -566,12 +585,7 @@ function bindLista(root){
     b.addEventListener('click', function(){
       var id = b.getAttribute('data-pdel');
       var p = state.productos.find(function(x){return x.id===id;});
-      if(p && !confirm('¿Eliminar "'+p.nombre+'" del stock y de la lista?')) return;
-      state.productos = state.productos.filter(function(x){return x.id!==id;});
-      delete state.buyQty[id];
-      render();
-      api('productos?id=eq.'+id, {method:'DELETE', prefer:'return=minimal'})
-        .catch(function(){ toast('No se pudo borrar.'); loadAll(); });
+      if(p) eliminarProducto(p.id, p.nombre);
     });
   });
   root.querySelectorAll('[data-bq]').forEach(function(b){
@@ -715,11 +729,7 @@ function openForm(editId, opts){
     });
     var d = document.getElementById('f-del');
     if(d) d.addEventListener('click', function(){
-      if(!confirm('¿Borrar "'+p.nombre+'" del stock?')) return;
-      state.productos = state.productos.filter(function(x){return x.id!==p.id;});
-      closeSheet(); render();
-      api('productos?id=eq.'+p.id, {method:'DELETE', prefer:'return=minimal'})
-        .catch(function(){ toast('No se pudo borrar.'); loadAll(); });
+      eliminarProducto(p.id, p.nombre, closeSheet);
     });
   }
 
