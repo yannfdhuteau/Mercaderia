@@ -246,6 +246,13 @@ main{ flex:1; padding:0 18px 104px; }
 .modo-pick button.on{ background:var(--ink); border-color:var(--ink); color:var(--paper); }
 
 .lugar-pick{ display:flex; flex-wrap:wrap; gap:7px; }
+.lugar-chip-wrap{ display:inline-flex; gap:4px; }
+.lugar-edit-icon{
+  background:var(--card); border:1px solid var(--line); border-radius:999px;
+  width:34px; height:34px; padding:0; flex-shrink:0; color:var(--faint);
+  display:inline-flex; align-items:center; justify-content:center;
+}
+.lugar-edit-icon svg{ width:14px; height:14px; }
 .lugar-pick button{
   background:var(--card); border:1px solid var(--line); border-radius:999px;
   padding:8px 13px; font-size:13.5px; font-weight:500; color:var(--muted);
@@ -261,6 +268,7 @@ main{ flex:1; padding:0 18px 104px; }
 }
 .icono-opcion svg{ width:22px; height:22px; flex-shrink:0; }
 .icono-opcion:active{ transform:scale(0.96); }
+.icono-opcion.on{ border-color:var(--ink); background:var(--line-soft); color:var(--ink); }
 
 .foto-add{
   background:var(--card); border:1px dashed var(--line); border-radius:10px;
@@ -296,7 +304,7 @@ main{ flex:1; padding:0 18px 104px; }
 <body>
 <div id="app">
   <div class="topbar">
-    <h1>Mercadería <span class="version-tag">v7</span></h1>
+    <h1>Mercadería <span class="version-tag">v8</span></h1>
     <div class="summary" id="summary">Cargando…</div>
   </div>
 
@@ -433,6 +441,7 @@ var LUGARES_DEFAULT = [
   {id:'otros',     label:'Otros',     icon:'<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>'}
 ];
 var ICONO_LUGAR_CUSTOM = '<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>';
+var ICONO_LAPIZ = '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>';
 var ICONOS_DICCIONARIO = [
   {label:'Bebidas', icon:'<path d="M9 2h6v3l1.5 3v12a1.5 1.5 0 0 1-1.5 1.5H9A1.5 1.5 0 0 1 7.5 20V8L9 5z"/><path d="M9 9h6"/>'},
   {label:'Panificados', icon:'<path d="M4 13c0-4.5 3.5-8 8-8s8 3.5 8 8-4 6-8 6-8-1.5-8-6z"/><path d="M8 11c1-1 2.2-1.5 4-1.5s3 .5 4 1.5"/>'},
@@ -812,24 +821,30 @@ function openForm(editId, opts){
   var sheet = document.getElementById('sheet');
   var cancelado = false;
   var eligiendoIcono = null; // nombre de la sección pendiente de elegir ícono, o null
+  var editandoLugarId = null; // si se está cambiando el ícono de una sección ya existente
 
   function html(){
     if(eligiendoIcono){
       var opciones = ICONOS_DICCIONARIO.concat([{label:'Genérico', icon:ICONO_LUGAR_CUSTOM}]);
+      var iconoActual = editandoLugarId ? (state.lugares.find(function(x){return x.id===editandoLugarId;})||{}).icon : null;
       var grid = opciones.map(function(o, i){
-        return '<button type="button" class="icono-opcion" data-iconoidx="'+i+'">'+
+        var activo = iconoActual && o.icon === iconoActual;
+        return '<button type="button" class="icono-opcion'+(activo?' on':'')+'" data-iconoidx="'+i+'">'+
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+o.icon+'</svg>'+
           '<span>'+esc(o.label)+'</span>'+
         '</button>';
       }).join('');
       return '<div class="handle"></div>'+
-        '<h2>Ícono para "'+esc(eligiendoIcono)+'"</h2>'+
+        '<h2>'+(editandoLugarId ? 'Cambiar ícono de "'+esc(eligiendoIcono)+'"' : 'Ícono para "'+esc(eligiendoIcono)+'"')+'</h2>'+
         '<div class="icono-grid">'+grid+'</div>'+
         '<button class="btn btn-ghost" style="width:100%; margin-top:14px" id="f-icono-cancel">Cancelar</button>';
     }
 
     var lugares = state.lugares.map(function(L){
-      return '<button type="button" data-lugar="'+L.id+'" class="'+(draft.lugar===L.id?'on':'')+'">'+L.label+'</button>';
+      return '<span class="lugar-chip-wrap">'+
+        '<button type="button" data-lugar="'+L.id+'" class="'+(draft.lugar===L.id?'on':'')+'">'+esc(L.label)+'</button>'+
+        '<button type="button" class="lugar-edit-icon" data-editicono="'+L.id+'" aria-label="Cambiar ícono de '+esc(L.label)+'">'+ICONO_LAPIZ+'</button>'+
+      '</span>';
     }).join('') + '<button type="button" class="lugar-add" id="f-lugar-add" aria-label="Agregar sección">+</button>';
 
     var porModo = draft.modo === 'unidades'
@@ -886,21 +901,43 @@ function openForm(editId, opts){
       sheet.querySelectorAll('[data-iconoidx]').forEach(function(b){
         b.addEventListener('click', function(){
           var elegido = opciones[Number(b.getAttribute('data-iconoidx'))];
-          var nuevo = {id:'custom_'+Date.now(), label:eligiendoIcono, icon:elegido.icon};
-          state.lugares.push(nuevo);
-          draft.lugar = nuevo.id;
-          eligiendoIcono = null;
-          rebuild();
-          api('lugares', {method:'POST', body:nuevo, prefer:'return=minimal'})
-            .catch(function(){ toast('No se pudo guardar la sección. Revisá la conexión.'); loadAll(); });
+          if(editandoLugarId){
+            var idPatch = editandoLugarId;
+            var L = state.lugares.find(function(x){return x.id===idPatch;});
+            if(L) L.icon = elegido.icon;
+            editandoLugarId = null;
+            eligiendoIcono = null;
+            rebuild();
+            api('lugares?id=eq.'+idPatch, {method:'PATCH', body:{icon:elegido.icon}, prefer:'return=minimal'})
+              .catch(function(){ toast('No se pudo guardar el ícono. Revisá la conexión.'); loadAll(); });
+          } else {
+            var nuevo = {id:'custom_'+Date.now(), label:eligiendoIcono, icon:elegido.icon};
+            state.lugares.push(nuevo);
+            draft.lugar = nuevo.id;
+            eligiendoIcono = null;
+            rebuild();
+            api('lugares', {method:'POST', body:nuevo, prefer:'return=minimal'})
+              .catch(function(){ toast('No se pudo guardar la sección. Revisá la conexión.'); loadAll(); });
+          }
         });
       });
       var cancelIcono = document.getElementById('f-icono-cancel');
-      if(cancelIcono) cancelIcono.addEventListener('click', function(){ eligiendoIcono = null; rebuild(); });
+      if(cancelIcono) cancelIcono.addEventListener('click', function(){ eligiendoIcono = null; editandoLugarId = null; rebuild(); });
       return;
     }
     sheet.querySelectorAll('[data-lugar]').forEach(function(b){
       b.addEventListener('click', function(){ draft.lugar = b.getAttribute('data-lugar'); rebuild(); });
+    });
+    sheet.querySelectorAll('[data-editicono]').forEach(function(b){
+      b.addEventListener('click', function(e){
+        e.stopPropagation();
+        var id = b.getAttribute('data-editicono');
+        var L = state.lugares.find(function(x){return x.id===id;});
+        if(!L) return;
+        editandoLugarId = id;
+        eligiendoIcono = L.label;
+        rebuild();
+      });
     });
     var addLugarBtn = document.getElementById('f-lugar-add');
     if(addLugarBtn) addLugarBtn.addEventListener('click', function(){
