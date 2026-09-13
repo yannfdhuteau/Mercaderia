@@ -95,16 +95,22 @@ input, select, textarea{font-family:inherit; color:var(--ink); font-size:16px;}
 main{ flex:1; padding:0 18px 104px; }
 
 .group{ margin-bottom:20px; }
+.group-head-row{ display:flex; align-items:center; gap:4px; padding:0 2px 8px; }
 .group-head{
-  display:flex; align-items:center; gap:8px; width:100%;
+  display:flex; align-items:center; gap:8px; flex:1; min-width:0;
   font-family:'Bricolage Grotesque', sans-serif;
   font-weight:700; font-size:15px; letter-spacing:-0.01em;
-  padding:0 2px 8px; background:none; border:none; text-align:left;
+  padding:0; background:none; border:none; text-align:left;
 }
 .group-head svg{ width:17px; height:17px; color:var(--muted); flex-shrink:0; }
 .group-head .count{ font-family:'Archivo',sans-serif; font-weight:500; font-size:13px; color:var(--faint); }
-.group-head .chevron{ margin-left:auto; width:16px; height:16px; color:var(--faint); transition:transform .15s; }
+.group-head .chevron{ margin-left:auto; width:16px; height:16px; color:var(--faint); transition:transform .15s; flex-shrink:0; }
 .group-head .chevron.collapsed{ transform:rotate(-90deg); }
+.group-edit{
+  flex-shrink:0; width:30px; height:30px; border-radius:9px; background:none; border:none;
+  color:var(--faint); display:flex; align-items:center; justify-content:center;
+}
+.group-edit svg{ width:15px; height:15px; }
 
 .item{
   background:var(--card); border:1px solid var(--line-soft);
@@ -246,13 +252,6 @@ main{ flex:1; padding:0 18px 104px; }
 .modo-pick button.on{ background:var(--ink); border-color:var(--ink); color:var(--paper); }
 
 .lugar-pick{ display:flex; flex-wrap:wrap; gap:7px; }
-.lugar-chip-wrap{ display:inline-flex; gap:4px; }
-.lugar-edit-icon{
-  background:var(--card); border:1px solid var(--line); border-radius:999px;
-  width:34px; height:34px; padding:0; flex-shrink:0; color:var(--faint);
-  display:inline-flex; align-items:center; justify-content:center;
-}
-.lugar-edit-icon svg{ width:14px; height:14px; }
 .lugar-pick button{
   background:var(--card); border:1px solid var(--line); border-radius:999px;
   padding:8px 13px; font-size:13.5px; font-weight:500; color:var(--muted);
@@ -304,7 +303,7 @@ main{ flex:1; padding:0 18px 104px; }
 <body>
 <div id="app">
   <div class="topbar">
-    <h1>Mercadería <span class="version-tag">v8</span></h1>
+    <h1>Mercadería <span class="version-tag">v10</span></h1>
     <div class="summary" id="summary">Cargando…</div>
   </div>
 
@@ -441,6 +440,7 @@ var LUGARES_DEFAULT = [
   {id:'otros',     label:'Otros',     icon:'<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>'}
 ];
 var ICONO_LUGAR_CUSTOM = '<path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>';
+var LUGAR_OTROS = 'otros'; // destino al borrar una sección; no se puede borrar a sí mismo
 var ICONO_LAPIZ = '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>';
 var ICONOS_DICCIONARIO = [
   {label:'Bebidas', icon:'<path d="M9 2h6v3l1.5 3v12a1.5 1.5 0 0 1-1.5 1.5H9A1.5 1.5 0 0 1 7.5 20V8L9 5z"/><path d="M9 9h6"/>'},
@@ -458,7 +458,17 @@ var ICONOS_DICCIONARIO = [
   {label:'Dormitorio', icon:'<path d="M3.5 19v-6.5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2V19"/><path d="M3.5 16.5h17"/><path d="M7 12.5V9h4v3.5"/>'},
   {label:'Oficina', icon:'<rect x="3.5" y="8" width="17" height="11" rx="2"/><path d="M9 8V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M3.5 13h17"/>'},
   {label:'Depósito / Sótano', icon:'<path d="M3.5 8 12 3.5 20.5 8 12 12.5z"/><path d="M3.5 8v8.5L12 21l8.5-4.5V8"/><path d="M12 12.5V21"/>'},
-  {label:'Pileta / Aire libre', icon:'<circle cx="12" cy="12" r="4"/><path d="M12 3v3M12 18v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M3 12h3M18 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>'}
+  {label:'Pileta / Aire libre', icon:'<circle cx="12" cy="12" r="4"/><path d="M12 3v3M12 18v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M3 12h3M18 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/>'},
+  {label:'Snacks y golosinas', icon:'<path d="M9 12a3 3 0 1 1 6 0 3 3 0 0 1-6 0z"/><path d="M6 12 3 9v6zM18 12l3-3v6z"/>'},
+  {label:'Conservas y enlatados', icon:'<rect x="6" y="5" width="12" height="15" rx="1.5"/><path d="M6 9h12M6 16h12"/>'},
+  {label:'Pastas, arroz y cereales', icon:'<path d="M4 12h16a8 8 0 0 1-8 8 8 8 0 0 1-8-8z"/><path d="M9 12V8M12 12V6M15 12V8"/>'},
+  {label:'Aceites y vinagres', icon:'<path d="M11 2h2v3l2 2v12a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2V7l2-2z"/><path d="M9.5 10h5"/>'},
+  {label:'Café, té e infusiones', icon:'<path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M17 10h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M7 3c0 1-1 1-1 2M11 3c0 1-1 1-1 2"/>'},
+  {label:'Vinos y bebidas alcohólicas', icon:'<path d="M8 3h8l-1 7a3 3 0 0 1-6 0z"/><path d="M12 13v6M9 19h6"/>'},
+  {label:'Plantas y jardín', icon:'<path d="M8 10c0-3 4-3 4-6 0 3 4 3 4 6a4 4 0 0 1-8 0z"/><path d="M12 10v5"/><path d="M7 15h10l-1 6H8z"/>'},
+  {label:'Valijas y viaje', icon:'<rect x="4" y="7" width="16" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/><path d="M12 11v5"/>'},
+  {label:'Electrónica y cables', icon:'<path d="M9 2v6M15 2v6"/><path d="M6 8h12v4a6 6 0 0 1-12 0z"/><path d="M12 18v4"/>'},
+  {label:'Cumpleaños y fiestas', icon:'<rect x="4" y="10" width="16" height="10" rx="1"/><path d="M4 14h16M12 10v10"/><path d="M12 10c-2-4-6-3-6-1s3 1 6 1zM12 10c2-4 6-3 6-1s-3 1-6 1z"/>'}
 ];
 function lugarInfo(id){
   return state.lugares.find(function(l){return l.id===id;}) ||
@@ -595,11 +605,16 @@ function renderDespensa(){
     if(!grupo.length) return;
     var cerrada = !buscando && colapsadas.indexOf(L.id) !== -1;
     html += '<div class="group">'+
-      '<button type="button" class="group-head" data-grupo-toggle="'+L.id+'">'+
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+L.icon+'</svg>'+
-        L.label + '<span class="count">'+grupo.length+'</span>'+
-        '<svg class="chevron'+(cerrada?' collapsed':'')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>'+
-      '</button>';
+      '<div class="group-head-row">'+
+        '<button type="button" class="group-head" data-grupo-toggle="'+L.id+'">'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+L.icon+'</svg>'+
+          esc(L.label) + '<span class="count">'+grupo.length+'</span>'+
+          '<svg class="chevron'+(cerrada?' collapsed':'')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>'+
+        '</button>'+
+        '<button type="button" class="group-edit" data-editlugar="'+L.id+'" aria-label="Editar sección">'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+ICONO_LAPIZ+'</svg>'+
+        '</button>'+
+      '</div>';
     if(!cerrada){ grupo.forEach(function(p){ html += itemHTML(p); }); }
     html += '</div>';
   });
@@ -666,6 +681,12 @@ function bindDespensa(root){
       renderDespensa();
     });
   });
+  root.querySelectorAll('[data-editlugar]').forEach(function(b){
+    b.addEventListener('click', function(e){
+      e.stopPropagation();
+      openLugarEdit(b.getAttribute('data-editlugar'));
+    });
+  });
   root.querySelectorAll('[data-setlv]').forEach(function(b){
     b.addEventListener('click', function(e){
       e.stopPropagation();
@@ -698,6 +719,89 @@ function bindDespensa(root){
       openForm(el.getAttribute('data-edit'));
     });
   });
+}
+
+/* ============ Editar sección (nombre + ícono) ============ */
+function openLugarEdit(lugarId){
+  var L = state.lugares.find(function(x){return x.id===lugarId;});
+  if(!L) return;
+  var draftL = {label:L.label, icon:L.icon};
+  var sheet = document.getElementById('sheet');
+  var opciones = ICONOS_DICCIONARIO.concat([{label:'Genérico', icon:ICONO_LUGAR_CUSTOM}]);
+
+  function html(){
+    var grid = opciones.map(function(o, i){
+      var activo = o.icon === draftL.icon;
+      return '<button type="button" class="icono-opcion'+(activo?' on':'')+'" data-iconoidx="'+i+'">'+
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+o.icon+'</svg>'+
+        '<span>'+esc(o.label)+'</span>'+
+      '</button>';
+    }).join('');
+    return '<div class="handle"></div>'+
+      '<h2>Editar sección</h2>'+
+      '<div class="field"><label>Nombre</label><input type="text" id="le-nombre" value="'+esc(draftL.label)+'"></div>'+
+      '<div class="field"><label>Ícono</label><div class="icono-grid">'+grid+'</div></div>'+
+      '<div class="sheet-actions">'+
+        '<button class="btn btn-ghost" style="flex:1" id="le-cancel">Cancelar</button>'+
+        '<button class="btn btn-primary" style="flex:2" id="le-save">Guardar</button>'+
+      '</div>'+
+      (lugarId !== LUGAR_OTROS
+        ? '<button class="btn btn-danger" style="width:100%; margin-top:9px" id="le-del">Borrar sección</button>'
+        : '<p style="margin-top:9px; font-size:12px; color:var(--faint); line-height:1.4;">Esta sección no se puede borrar: es donde van a parar los productos de las secciones que borres.</p>');
+  }
+  function grab(){
+    var n = document.getElementById('le-nombre'); if(n) draftL.label = n.value;
+  }
+  function rebuild(){ grab(); sheet.innerHTML = html(); bind(); }
+
+  function bind(){
+    sheet.querySelectorAll('[data-iconoidx]').forEach(function(b){
+      b.addEventListener('click', function(){
+        grab();
+        draftL.icon = opciones[Number(b.getAttribute('data-iconoidx'))].icon;
+        rebuild();
+      });
+    });
+    document.getElementById('le-cancel').addEventListener('click', closeSheet);
+    document.getElementById('le-save').addEventListener('click', function(){
+      grab();
+      var nombre = draftL.label.trim();
+      if(!nombre){ document.getElementById('le-nombre').focus(); toast('Poné un nombre.'); return; }
+      var cambios = {label:nombre, icon:draftL.icon};
+      Object.keys(cambios).forEach(function(k){ L[k] = cambios[k]; });
+      closeSheet();
+      renderDespensa();
+      api('lugares?id=eq.'+lugarId, {method:'PATCH', body:cambios, prefer:'return=minimal'})
+        .catch(function(){ toast('No se pudo guardar. Revisá la conexión.'); loadAll(); });
+    });
+    var delBtn = document.getElementById('le-del');
+    if(delBtn) delBtn.addEventListener('click', function(){
+      var afectados = state.productos.filter(function(p){ return p.lugar === lugarId; });
+      var aviso = afectados.length
+        ? '¿Borrar la sección "'+L.label+'"? '+afectados.length+' producto'+(afectados.length===1?'':'s')+' se va'+(afectados.length===1?'':'n')+' a mover a "Otros".'
+        : '¿Borrar la sección "'+L.label+'"?';
+      if(!confirm(aviso)) return;
+
+      afectados.forEach(function(p){ p.lugar = LUGAR_OTROS; });
+      state.lugares = state.lugares.filter(function(x){ return x.id !== lugarId; });
+      var colapsadas = getColapsadas();
+      var idx = colapsadas.indexOf(lugarId);
+      if(idx !== -1){ colapsadas.splice(idx, 1); setColapsadas(colapsadas); }
+      closeSheet();
+      renderDespensa();
+
+      var tareas = [];
+      if(afectados.length){
+        tareas.push(api('productos?lugar=eq.'+lugarId, {method:'PATCH', body:{lugar:LUGAR_OTROS}, prefer:'return=minimal'}));
+      }
+      tareas.push(api('lugares?id=eq.'+lugarId, {method:'DELETE', prefer:'return=minimal'}));
+      Promise.all(tareas).catch(function(){ toast('Algo no se guardó. Recargando…'); loadAll(); });
+    });
+  }
+
+  sheet.innerHTML = html();
+  document.getElementById('overlay').hidden = false;
+  bind();
 }
 
 /* ============ Render: Lista ============ */
@@ -820,31 +924,25 @@ function openForm(editId, opts){
 
   var sheet = document.getElementById('sheet');
   var cancelado = false;
-  var eligiendoIcono = null; // nombre de la sección pendiente de elegir ícono, o null
-  var editandoLugarId = null; // si se está cambiando el ícono de una sección ya existente
+  var eligiendoIcono = null; // nombre de la sección nueva pendiente de elegir ícono, o null
 
   function html(){
     if(eligiendoIcono){
       var opciones = ICONOS_DICCIONARIO.concat([{label:'Genérico', icon:ICONO_LUGAR_CUSTOM}]);
-      var iconoActual = editandoLugarId ? (state.lugares.find(function(x){return x.id===editandoLugarId;})||{}).icon : null;
       var grid = opciones.map(function(o, i){
-        var activo = iconoActual && o.icon === iconoActual;
-        return '<button type="button" class="icono-opcion'+(activo?' on':'')+'" data-iconoidx="'+i+'">'+
+        return '<button type="button" class="icono-opcion" data-iconoidx="'+i+'">'+
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+o.icon+'</svg>'+
           '<span>'+esc(o.label)+'</span>'+
         '</button>';
       }).join('');
       return '<div class="handle"></div>'+
-        '<h2>'+(editandoLugarId ? 'Cambiar ícono de "'+esc(eligiendoIcono)+'"' : 'Ícono para "'+esc(eligiendoIcono)+'"')+'</h2>'+
+        '<h2>Ícono para "'+esc(eligiendoIcono)+'"</h2>'+
         '<div class="icono-grid">'+grid+'</div>'+
         '<button class="btn btn-ghost" style="width:100%; margin-top:14px" id="f-icono-cancel">Cancelar</button>';
     }
 
     var lugares = state.lugares.map(function(L){
-      return '<span class="lugar-chip-wrap">'+
-        '<button type="button" data-lugar="'+L.id+'" class="'+(draft.lugar===L.id?'on':'')+'">'+esc(L.label)+'</button>'+
-        '<button type="button" class="lugar-edit-icon" data-editicono="'+L.id+'" aria-label="Cambiar ícono de '+esc(L.label)+'">'+ICONO_LAPIZ+'</button>'+
-      '</span>';
+      return '<button type="button" data-lugar="'+L.id+'" class="'+(draft.lugar===L.id?'on':'')+'">'+esc(L.label)+'</button>';
     }).join('') + '<button type="button" class="lugar-add" id="f-lugar-add" aria-label="Agregar sección">+</button>';
 
     var porModo = draft.modo === 'unidades'
@@ -901,43 +999,21 @@ function openForm(editId, opts){
       sheet.querySelectorAll('[data-iconoidx]').forEach(function(b){
         b.addEventListener('click', function(){
           var elegido = opciones[Number(b.getAttribute('data-iconoidx'))];
-          if(editandoLugarId){
-            var idPatch = editandoLugarId;
-            var L = state.lugares.find(function(x){return x.id===idPatch;});
-            if(L) L.icon = elegido.icon;
-            editandoLugarId = null;
-            eligiendoIcono = null;
-            rebuild();
-            api('lugares?id=eq.'+idPatch, {method:'PATCH', body:{icon:elegido.icon}, prefer:'return=minimal'})
-              .catch(function(){ toast('No se pudo guardar el ícono. Revisá la conexión.'); loadAll(); });
-          } else {
-            var nuevo = {id:'custom_'+Date.now(), label:eligiendoIcono, icon:elegido.icon};
-            state.lugares.push(nuevo);
-            draft.lugar = nuevo.id;
-            eligiendoIcono = null;
-            rebuild();
-            api('lugares', {method:'POST', body:nuevo, prefer:'return=minimal'})
-              .catch(function(){ toast('No se pudo guardar la sección. Revisá la conexión.'); loadAll(); });
-          }
+          var nuevo = {id:'custom_'+Date.now(), label:eligiendoIcono, icon:elegido.icon};
+          state.lugares.push(nuevo);
+          draft.lugar = nuevo.id;
+          eligiendoIcono = null;
+          rebuild();
+          api('lugares', {method:'POST', body:nuevo, prefer:'return=minimal'})
+            .catch(function(){ toast('No se pudo guardar la sección. Revisá la conexión.'); loadAll(); });
         });
       });
       var cancelIcono = document.getElementById('f-icono-cancel');
-      if(cancelIcono) cancelIcono.addEventListener('click', function(){ eligiendoIcono = null; editandoLugarId = null; rebuild(); });
+      if(cancelIcono) cancelIcono.addEventListener('click', function(){ eligiendoIcono = null; rebuild(); });
       return;
     }
     sheet.querySelectorAll('[data-lugar]').forEach(function(b){
       b.addEventListener('click', function(){ draft.lugar = b.getAttribute('data-lugar'); rebuild(); });
-    });
-    sheet.querySelectorAll('[data-editicono]').forEach(function(b){
-      b.addEventListener('click', function(e){
-        e.stopPropagation();
-        var id = b.getAttribute('data-editicono');
-        var L = state.lugares.find(function(x){return x.id===id;});
-        if(!L) return;
-        editandoLugarId = id;
-        eligiendoIcono = L.label;
-        rebuild();
-      });
     });
     var addLugarBtn = document.getElementById('f-lugar-add');
     if(addLugarBtn) addLugarBtn.addEventListener('click', function(){
