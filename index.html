@@ -310,7 +310,7 @@ main{ flex:1; padding:0 18px 104px; }
 <body>
 <div id="app">
   <div class="topbar">
-    <h1>Mercadería <span class="version-tag">v11</span></h1>
+    <h1>Mercadería <span class="version-tag">v13</span></h1>
     <div class="summary" id="summary">Cargando…</div>
   </div>
 
@@ -502,11 +502,12 @@ var state = {
 
 /* ============ Secciones colapsadas (preferencia local, no se sincroniza) ============ */
 var COLAPSADAS_KEY = 'mercaderia_secciones_colapsadas';
-function getColapsadas(){
-  try { return JSON.parse(localStorage.getItem(COLAPSADAS_KEY) || '[]'); } catch(e){ return []; }
+var LISTA_COLAPSADAS_KEY = 'mercaderia_lista_secciones_colapsadas';
+function getColapsadas(key){
+  try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch(e){ return []; }
 }
-function setColapsadas(arr){
-  try { localStorage.setItem(COLAPSADAS_KEY, JSON.stringify(arr)); } catch(e){}
+function setColapsadas(key, arr){
+  try { localStorage.setItem(key, JSON.stringify(arr)); } catch(e){}
 }
 
 /* ============ Utils ============ */
@@ -607,7 +608,7 @@ function renderDespensa(){
   }
 
   var buscando = !!q;
-  var colapsadas = getColapsadas();
+  var colapsadas = getColapsadas(COLAPSADAS_KEY);
   var html = '';
   state.lugares.forEach(function(L){
     var grupo = list.filter(function(p){ return (p.lugar||'otros') === L.id; });
@@ -689,10 +690,10 @@ function bindDespensa(root){
   root.querySelectorAll('[data-grupo-toggle]').forEach(function(b){
     b.addEventListener('click', function(){
       var id = b.getAttribute('data-grupo-toggle');
-      var arr = getColapsadas();
+      var arr = getColapsadas(COLAPSADAS_KEY);
       var idx = arr.indexOf(id);
       if(idx === -1) arr.push(id); else arr.splice(idx, 1);
-      setColapsadas(arr);
+      setColapsadas(COLAPSADAS_KEY, arr);
       renderDespensa();
     });
   });
@@ -812,9 +813,11 @@ function openLugarEdit(lugarId){
 
       afectados.forEach(function(p){ p.lugar = LUGAR_OTROS; });
       state.lugares = state.lugares.filter(function(x){ return x.id !== lugarId; });
-      var colapsadas = getColapsadas();
-      var idx = colapsadas.indexOf(lugarId);
-      if(idx !== -1){ colapsadas.splice(idx, 1); setColapsadas(colapsadas); }
+      [COLAPSADAS_KEY, LISTA_COLAPSADAS_KEY].forEach(function(key){
+        var colapsadas = getColapsadas(key);
+        var idx = colapsadas.indexOf(lugarId);
+        if(idx !== -1){ colapsadas.splice(idx, 1); setColapsadas(key, colapsadas); }
+      });
       closeSheet();
       renderDespensa();
 
@@ -835,6 +838,30 @@ function openLugarEdit(lugarId){
 /* ============ Render: Lista ============ */
 function faltantes(){ return state.productos.filter(falta); }
 
+function liHTML(p){
+  var esUnidad = p.modo === 'unidades';
+  var qty = state.buyQty[p.id] != null ? state.buyQty[p.id] : Number(p.compra || 1);
+  return '<div class="li'+(p.comprado?' done':'')+'">'+
+    '<button class="check" data-chk="'+p.id+'" aria-label="Marcar comprado">'+
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>'+
+    '</button>'+
+    '<div class="body" style="flex:1">'+
+      '<div class="name-row">'+
+        (p.foto ? '<img class="item-thumb" src="'+esc(p.foto)+'" alt="">' : '')+
+        '<div class="name">'+esc(p.nombre)+'</div>'+
+      '</div>'+
+      '<div class="li-where">'+(esUnidad ? 'quedan '+p.cantidad : nivelInfo(Number(p.nivel)).label.toLowerCase())+'</div>'+
+    '</div>'+
+    (esUnidad ?
+      '<div class="buy-qty">'+
+        '<button data-bq="-1" data-id="'+p.id+'">−</button>'+
+        '<span class="v">'+qty+'</span>'+
+        '<button data-bq="1" data-id="'+p.id+'">+</button>'+
+      '</div>' : '')+
+    '<button class="li-del" data-pdel="'+p.id+'" aria-label="Eliminar producto">&times;</button>'+
+  '</div>';
+}
+
 function renderLista(){
   var main = document.getElementById('view-lista');
   var pend = faltantes();
@@ -848,29 +875,21 @@ function renderLista(){
     return;
   }
 
-  pend.forEach(function(p){
-    var esUnidad = p.modo === 'unidades';
-    var qty = state.buyQty[p.id] != null ? state.buyQty[p.id] : Number(p.compra || 1);
-    html += '<div class="li'+(p.comprado?' done':'')+'">'+
-      '<button class="check" data-chk="'+p.id+'" aria-label="Marcar comprado">'+
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>'+
-      '</button>'+
-      '<div class="body" style="flex:1">'+
-        '<div class="name-row">'+
-          (p.foto ? '<img class="item-thumb" src="'+esc(p.foto)+'" alt="">' : '')+
-          '<div class="name">'+esc(p.nombre)+'</div>'+
-        '</div>'+
-        '<div class="li-where">'+lugarInfo(p.lugar).label+' · '+
-          (esUnidad ? 'quedan '+p.cantidad : nivelInfo(Number(p.nivel)).label.toLowerCase())+'</div>'+
-      '</div>'+
-      (esUnidad ?
-        '<div class="buy-qty">'+
-          '<button data-bq="-1" data-id="'+p.id+'">−</button>'+
-          '<span class="v">'+qty+'</span>'+
-          '<button data-bq="1" data-id="'+p.id+'">+</button>'+
-        '</div>' : '')+
-      '<button class="li-del" data-pdel="'+p.id+'" aria-label="Eliminar producto">&times;</button>'+
-    '</div>';
+  var colapsadas = getColapsadas(LISTA_COLAPSADAS_KEY);
+  state.lugares.forEach(function(L){
+    var grupo = pend.filter(function(p){ return (p.lugar||'otros') === L.id; });
+    if(!grupo.length) return;
+    var cerrada = colapsadas.indexOf(L.id) !== -1;
+    html += '<div class="group">'+
+      '<div class="group-head-row">'+
+        '<button type="button" class="group-head" data-grupo-toggle="'+L.id+'">'+
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">'+L.icon+'</svg>'+
+          esc(L.label) + '<span class="count">'+grupo.length+'</span>'+
+          '<svg class="chevron'+(cerrada?' collapsed':'')+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>'+
+        '</button>'+
+      '</div>';
+    if(!cerrada){ grupo.forEach(function(p){ html += liHTML(p); }); }
+    html += '</div>';
   });
 
   var marcados = pend.filter(function(p){return p.comprado;}).length;
@@ -885,6 +904,16 @@ function bindLista(root){
   var btn = root.querySelector('#add-manual-btn');
   if(btn) btn.addEventListener('click', function(){ openForm(null, {desdeLista:true}); });
 
+  root.querySelectorAll('[data-grupo-toggle]').forEach(function(b){
+    b.addEventListener('click', function(){
+      var id = b.getAttribute('data-grupo-toggle');
+      var arr = getColapsadas(LISTA_COLAPSADAS_KEY);
+      var idx = arr.indexOf(id);
+      if(idx === -1) arr.push(id); else arr.splice(idx, 1);
+      setColapsadas(LISTA_COLAPSADAS_KEY, arr);
+      renderLista();
+    });
+  });
   root.querySelectorAll('[data-chk]').forEach(function(b){
     b.addEventListener('click', function(){
       var p = state.productos.find(function(x){return x.id===b.getAttribute('data-chk');});
