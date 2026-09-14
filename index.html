@@ -140,6 +140,13 @@ main{ flex:1; padding:0 18px 104px; }
 .levels button.on[data-lv="2"]{ background:var(--medio); }
 .levels button.on[data-lv="1"]{ background:var(--poco); }
 .levels button.on[data-lv="0"]{ background:var(--sin); }
+.levels button.pausa-btn.on{ background:var(--faint); }
+
+.pausa-toggle{
+  margin-top:9px; display:inline-flex; align-items:center; font-size:12px; font-weight:600;
+  padding:6px 11px; border-radius:999px; border:1px solid var(--line); background:var(--paper); color:var(--faint);
+}
+.pausa-toggle.on{ background:var(--faint); border-color:transparent; color:#fff; }
 
 /* unit stepper */
 .stepper{ display:flex; align-items:center; gap:6px; flex-shrink:0; }
@@ -303,7 +310,7 @@ main{ flex:1; padding:0 18px 104px; }
 <body>
 <div id="app">
   <div class="topbar">
-    <h1>Mercadería <span class="version-tag">v10</span></h1>
+    <h1>Mercadería <span class="version-tag">v11</span></h1>
     <div class="summary" id="summary">Cargando…</div>
   </div>
 
@@ -481,6 +488,7 @@ var NIVELES = [
   {v:1, label:'Poco',  color:'var(--poco)',  fill:0.26},
   {v:0, label:'Sin',   color:'var(--sin)',   fill:0}
 ];
+var NIVEL_PAUSADO = {label:'No hace falta', color:'var(--faint)', fill:0};
 function nivelInfo(v){ return NIVELES.find(function(n){return n.v===v;}) || NIVELES[0]; }
 
 /* ============ Estado ============ */
@@ -507,6 +515,7 @@ function esc(s){ return (s||'').toString().replace(/[&<>"']/g, function(c){ retu
 
 function falta(p){
   if(p.en_lista) return true;
+  if(p.pausado) return false;
   if(p.modo === 'unidades') return Number(p.cantidad) <= Number(p.umbral);
   return Number(p.nivel) <= 1;
 }
@@ -624,13 +633,13 @@ function renderDespensa(){
 
 function itemHTML(p){
   var esUnidad = p.modo === 'unidades';
-  var st = esUnidad ? estadoUnidades(p) : nivelInfo(Number(p.nivel));
+  var st = p.pausado ? NIVEL_PAUSADO : (esUnidad ? estadoUnidades(p) : nivelInfo(Number(p.nivel)));
   var gutter = esUnidad
     ? '<span class="qty" style="color:'+st.color+'">'+p.cantidad+'</span>'
     : jarSVG(st.fill, st.color);
 
   var sub = esUnidad
-    ? (p.unidad ? esc(p.unidad) : 'unidades') + ' · avisar con ' + p.umbral + ' o menos'
+    ? (p.pausado ? 'No hace falta reponer' : (p.unidad ? esc(p.unidad) : 'unidades') + ' · avisar con ' + p.umbral + ' o menos')
     : st.label;
 
   var control = esUnidad
@@ -642,8 +651,14 @@ function itemHTML(p){
 
   var levels = esUnidad ? '' :
     '<div class="levels">'+ NIVELES.map(function(n){
-      return '<button data-lv="'+n.v+'" data-setlv="'+p.id+'" class="'+(Number(p.nivel)===n.v?'on':'')+'">'+n.label+'</button>';
-    }).join('') +'</div>';
+      return '<button data-lv="'+n.v+'" data-setlv="'+p.id+'" class="'+(Number(p.nivel)===n.v && !p.pausado?'on':'')+'">'+n.label+'</button>';
+    }).join('') +
+    '<button data-pause="'+p.id+'" class="pausa-btn'+(p.pausado?' on':'')+'">No hace falta</button>'+
+    '</div>';
+
+  var pausaToggle = esUnidad
+    ? '<button type="button" data-togglepausa="'+p.id+'" class="pausa-toggle'+(p.pausado?' on':'')+'">No hace falta reponer</button>'
+    : '';
 
   return '<div class="item">'+
     '<div class="gutter">'+gutter+'</div>'+
@@ -653,7 +668,7 @@ function itemHTML(p){
         '<div class="name">'+esc(p.nombre)+'</div>'+
       '</div>'+
       '<div class="sub">'+sub+'</div>'+
-      levels+
+      levels + pausaToggle +
     '</div>'+
     control+
     '<button class="li-del" data-idel="'+p.id+'" aria-label="Eliminar producto">&times;</button>'+
@@ -690,7 +705,20 @@ function bindDespensa(root){
   root.querySelectorAll('[data-setlv]').forEach(function(b){
     b.addEventListener('click', function(e){
       e.stopPropagation();
-      patchProducto(b.getAttribute('data-setlv'), {nivel: Number(b.getAttribute('data-lv'))});
+      patchProducto(b.getAttribute('data-setlv'), {nivel: Number(b.getAttribute('data-lv')), pausado:false});
+    });
+  });
+  root.querySelectorAll('[data-pause]').forEach(function(b){
+    b.addEventListener('click', function(e){
+      e.stopPropagation();
+      patchProducto(b.getAttribute('data-pause'), {nivel:0, pausado:true});
+    });
+  });
+  root.querySelectorAll('[data-togglepausa]').forEach(function(b){
+    b.addEventListener('click', function(e){
+      e.stopPropagation();
+      var p = state.productos.find(function(x){return x.id===b.getAttribute('data-togglepausa');});
+      if(p) patchProducto(p.id, {pausado: !p.pausado});
     });
   });
   root.querySelectorAll('[data-plus]').forEach(function(b){
@@ -715,7 +743,7 @@ function bindDespensa(root){
   });
   root.querySelectorAll('[data-edit]').forEach(function(el){
     el.addEventListener('click', function(e){
-      if(e.target.closest('[data-setlv]')) return;
+      if(e.target.closest('[data-setlv]') || e.target.closest('[data-pause]') || e.target.closest('[data-togglepausa]')) return;
       openForm(el.getAttribute('data-edit'));
     });
   });
@@ -913,12 +941,12 @@ function openForm(editId, opts){
   var draft = p ? {
     nombre:p.nombre, lugar:p.lugar, modo:p.modo, nivel:Number(p.nivel),
     cantidad:Number(p.cantidad), umbral:Number(p.umbral), compra:Number(p.compra||1),
-    unidad:p.unidad||'', nota:p.nota||'',
+    unidad:p.unidad||'', nota:p.nota||'', pausado:!!p.pausado,
     foto:p.foto||'', fotoNueva:null, fotoPreview:p.foto||''
   } : {
     nombre:'', lugar:(state.lugares[0]||{}).id||'alacena', modo:'nivel',
     nivel: opts.desdeLista ? 0 : 3,
-    cantidad:1, umbral:1, compra:1, unidad:'', nota:'',
+    cantidad:1, umbral:1, compra:1, unidad:'', nota:'', pausado:false,
     foto:'', fotoNueva:null, fotoPreview:''
   };
 
@@ -950,11 +978,14 @@ function openForm(editId, opts){
           '<div class="field"><label>Cuántos tenés</label><input type="number" id="f-cant" min="0" value="'+draft.cantidad+'"></div>'+
           '<div class="field"><label>Avisar cuando queden</label><input type="number" id="f-umbral" min="0" value="'+draft.umbral+'"></div>'+
         '</div>'+
-        '<div class="field"><label>Cómo se cuenta</label><input type="text" id="f-unidad" value="'+esc(draft.unidad)+'" placeholder="paquetes, latas, botellas"></div>'
+        '<div class="field"><label>Cómo se cuenta</label><input type="text" id="f-unidad" value="'+esc(draft.unidad)+'" placeholder="paquetes, latas, botellas"></div>'+
+        '<button type="button" id="f-pausa-toggle" class="pausa-toggle'+(draft.pausado?' on':'')+'">No hace falta reponer por ahora</button>'
       : '<div class="field"><label>Cuánto queda</label>'+
           '<div class="levels" id="f-levels">'+ NIVELES.map(function(n){
-            return '<button type="button" data-lv="'+n.v+'" data-flv="1" class="'+(draft.nivel===n.v?'on':'')+'">'+n.label+'</button>';
-          }).join('') +'</div></div>';
+            return '<button type="button" data-lv="'+n.v+'" data-flv="1" class="'+(draft.nivel===n.v && !draft.pausado?'on':'')+'">'+n.label+'</button>';
+          }).join('') +
+          '<button type="button" id="f-pausa-btn" class="pausa-btn'+(draft.pausado?' on':'')+'">No hace falta</button>'+
+          '</div></div>';
 
     return '<div class="handle"></div>'+
       '<h2>'+(p?'Editar producto':'Nuevo producto')+'</h2>'+
@@ -1026,8 +1057,12 @@ function openForm(editId, opts){
       b.addEventListener('click', function(){ draft.modo = b.getAttribute('data-modo'); rebuild(); });
     });
     sheet.querySelectorAll('[data-flv]').forEach(function(b){
-      b.addEventListener('click', function(){ draft.nivel = Number(b.getAttribute('data-lv')); rebuild(); });
+      b.addEventListener('click', function(){ draft.nivel = Number(b.getAttribute('data-lv')); draft.pausado = false; rebuild(); });
     });
+    var pausaBtn = document.getElementById('f-pausa-btn');
+    if(pausaBtn) pausaBtn.addEventListener('click', function(){ draft.nivel = 0; draft.pausado = true; rebuild(); });
+    var pausaToggleBtn = document.getElementById('f-pausa-toggle');
+    if(pausaToggleBtn) pausaToggleBtn.addEventListener('click', function(){ grab(); draft.pausado = !draft.pausado; rebuild(); });
     var fotoAddBtn = document.getElementById('f-foto-add');
     if(fotoAddBtn) fotoAddBtn.addEventListener('click', function(){
       document.getElementById('f-foto-input').click();
@@ -1062,7 +1097,7 @@ function openForm(editId, opts){
           nombre:draft.nombre.trim(), lugar:draft.lugar, modo:draft.modo,
           nivel:draft.nivel, cantidad:draft.cantidad, umbral:draft.umbral,
           compra:draft.compra, unidad:draft.unidad.trim(), nota:draft.nota.trim(),
-          foto:fotoUrl
+          pausado:draft.pausado, foto:fotoUrl
         };
         closeSheet();
         if(p){
